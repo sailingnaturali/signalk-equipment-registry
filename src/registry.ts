@@ -20,7 +20,7 @@ export interface RegistryEntry {
 export type Registry = Record<string, RegistryEntry>;
 
 const REQUIRED: (keyof RegistryEntry)[] = [
-  'manufacturer', 'instance', 'model', 'category', 'source', 'paths',
+  'manufacturer', 'model', 'instance', 'category', 'source', 'paths',
 ];
 
 // Read and shallow-validate the registry JSON. A missing file is not an error

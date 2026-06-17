@@ -32,6 +32,6 @@ describe('readRegistryFile', () => {
 
   it('throws on an entry missing a required field', () => {
     const bad = { 'propulsion.port': { manufacturer: 'Oceanvolt' } };
-    expect(() => readRegistryFile(tmpFile(JSON.stringify(bad)))).toThrow(/instance/);
+    expect(() => readRegistryFile(tmpFile(JSON.stringify(bad)))).toThrow(/missing required field/);
   });
 });
