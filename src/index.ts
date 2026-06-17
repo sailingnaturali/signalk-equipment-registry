@@ -27,12 +27,11 @@ export = function (app: ServerAPI): Plugin {
     },
 
     start(options: Options) {
-      const path = options.registryPath
-        ? options.registryPath
-        : join(app.getDataDirPath(), 'equipment-registry.json');
-      registry = readRegistryFile(path);
+      const filePath = options.registryPath ??
+        join(app.getDataDirPath(), 'equipment-registry.json');
+      registry = readRegistryFile(filePath);
       app.debug('equipment registry loaded: %d instances from %s',
-        Object.keys(registry).length, path);
+        Object.keys(registry).length, filePath);
 
       // Served at /signalk/v2/api/resources/equipment, anonymously readable
       // under allow_readonly (the data API), like signalk-currents. A
