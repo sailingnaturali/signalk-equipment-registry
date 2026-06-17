@@ -7,11 +7,14 @@ export interface RegistryPathBinding {
 
 export interface RegistryEntry {
   equipment_id: string | null;
-  manufacturer: string;
-  model: string;
+  // Identity is required to be *present* (the validator rejects a missing key),
+  // but may be null for a migrated card-less binding or a discovered-but-
+  // unidentified device (SP2). SignalK has no native slot for these.
+  manufacturer: string | null;
+  model: string | null;
   serial: string | null;
   instance: string;
-  category: string;
+  category: string | null;
   source: 'declared' | 'discovered';
   paths: RegistryPathBinding[];
   n2k?: { address?: number; canName?: string; manufacturerCode?: number };
