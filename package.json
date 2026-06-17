@@ -41,6 +41,7 @@
     "@signalk/server-api": "^2.0.0"
   },
   "devDependencies": {
+    "@types/node": "^25.9.3",
     "typescript": "^5.4.0",
     "vitest": "^2.0.0"
   }
