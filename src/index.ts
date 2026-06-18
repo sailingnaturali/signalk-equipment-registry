@@ -1,9 +1,11 @@
-import { Plugin, ServerAPI } from '@signalk/server-api';
+import { Plugin, ServerAPI, Path } from '@signalk/server-api';
 import { join } from 'node:path';
 import { readRegistryFile, Registry } from './registry';
+import { identityDeltas } from './identity';
 
 interface Options {
   registryPath?: string;
+  publishToDataModel?: boolean;
 }
 
 export = function (app: ServerAPI): Plugin {
@@ -22,6 +24,13 @@ export = function (app: ServerAPI): Plugin {
           title: 'Path to equipment-registry.json',
           description:
             'Absolute path, or relative to the SignalK data directory. Defaults to <dataDir>/equipment-registry.json.',
+        },
+        publishToDataModel: {
+          type: 'boolean',
+          title: 'Publish equipment identity to the data model',
+          description:
+            'Also emit each instance\'s manufacturer/model/serial as SignalK data so it appears in the Data Browser (sourced to this plugin). Default on.',
+          default: true,
         },
       },
     },
@@ -48,6 +57,17 @@ export = function (app: ServerAPI): Plugin {
           deleteResource(): never { throw new Error('Not implemented'); },
         },
       });
+
+      if (options.publishToDataModel !== false) {
+        const values = identityDeltas(registry).map((d) => ({
+          path: d.path as Path,
+          value: d.value,
+        }));
+        if (values.length > 0) {
+          app.handleMessage(plugin.id, { updates: [{ values }] });
+          app.debug('published %d equipment-identity values to the data model', values.length);
+        }
+      }
     },
 
     stop() {
