@@ -65,8 +65,8 @@ function parseDevices(sources: Record<string, unknown>): Device[] {
         sourceRef: `${label}.${key}`,
         identity: {
           manufacturer,
-          model: (n2k.modelId as string) ?? null,
-          serial: (n2k.modelSerialCode as string) ?? null,
+          model: typeof n2k.modelId === 'string' ? n2k.modelId : null,
+          serial: typeof n2k.modelSerialCode === 'string' ? n2k.modelSerialCode : null,
         },
       });
     }

@@ -18,6 +18,11 @@ describe('pathsBySource', () => {
     };
     expect(pathsBySource(self)).toEqual({ 'n2k.22': ['propulsion.port.temperature'] });
   });
+
+  it('ignores a non-string $source', () => {
+    const self = { environment: { depth: { $source: { label: 'bad' }, value: 5 } } };
+    expect(pathsBySource(self)).toEqual({});
+  });
 });
 
 describe('discoveredFromSources', () => {
