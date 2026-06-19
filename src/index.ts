@@ -11,17 +11,31 @@ interface Options {
   consumeDiscovery?: boolean;
 }
 
-// ServerAPI's types omit the event-bus methods; declare the bits we use.
-interface DiscoveryApp extends ServerAPI {
+// ServerAPI's types omit app.signalk; declare the bits we use. It is the
+// FullSignalK model: an EventEmitter that fires 'delta' per accepted delta,
+// and exposes `.self` (the full self-vessel tree). We need both because:
+//  - n2kSourceMetadata fires only on the n2k-signalk stream's internal mapper;
+//    it lands source identity in the sources tree but is NOT re-emitted on the
+//    app bus (verified against signalk-server 2.28), so the delta bus is our
+//    "something changed" trigger.
+//  - getSelfPath('') returns undefined (lodash _.get with an empty path) and
+//    getPath('vessels.self') returns {} (retrieve() keys vessels by uuid, no
+//    self alias), so app.signalk.self is the only accessor that yields the full
+//    self tree in-process. See docs/core-discovery-gaps.md.
+interface FullSignalK {
   on(event: string, listener: (...args: unknown[]) => void): void;
   removeListener(event: string, listener: (...args: unknown[]) => void): void;
+  self: Record<string, unknown>;
+}
+interface DiscoveryApp extends ServerAPI {
+  signalk: FullSignalK;
 }
 
 export = function (app: ServerAPI): Plugin {
   let declared: Registry = {};
   let served: Registry = {};
   let debounce: ReturnType<typeof setTimeout> | undefined;
-  let onMetadata: (() => void) | undefined;
+  let onUpdate: (() => void) | undefined;
 
   const plugin: Plugin = {
     id: 'signalk-equipment-registry',
@@ -67,7 +81,7 @@ export = function (app: ServerAPI): Plugin {
         const discovered: Record<string, Identity> = options.consumeDiscovery !== false
           ? discoveredFromSources(
               (app.getPath('sources') as Record<string, unknown>) ?? {},
-              (app.getSelfPath('') as Record<string, unknown>) ?? {},
+              (app as DiscoveryApp).signalk?.self ?? {},
             )
           : {};
         served = overlay(declared, discovered);
@@ -92,23 +106,31 @@ export = function (app: ServerAPI): Plugin {
       });
 
       if (options.consumeDiscovery !== false) {
-        // n2kSourceMetadata fires per identity PGN as core discovers devices; use
-        // it as a trigger and re-read the server-assembled sources tree. Debounced
-        // so a burst of address-claim/product-info PGNs coalesces into one refresh.
-        onMetadata = () => {
-          clearTimeout(debounce);
-          debounce = setTimeout(recompute, 1000);
+        // Re-read the server-assembled sources tree whenever deltas flow. Core
+        // populates each source's n2k identity (manufacturer/model/serial) into
+        // that tree as it discovers devices, but never re-emits it on the app
+        // bus — so we use the delta bus as a "something changed" trigger and
+        // re-derive. Throttled (not debounced): on a live bus deltas arrive
+        // faster than any debounce window, so resetting the timer each time
+        // would starve it forever. Instead schedule one trailing recompute and
+        // ignore further updates until it fires — at most one recompute/second.
+        onUpdate = () => {
+          if (debounce) return;
+          debounce = setTimeout(() => {
+            debounce = undefined;
+            recompute();
+          }, 1000);
         };
-        (app as DiscoveryApp).on('n2kSourceMetadata', onMetadata);
-        app.debug('consumeDiscovery on — listening for n2kSourceMetadata');
+        (app as DiscoveryApp).signalk.on('delta', onUpdate);
+        app.debug('consumeDiscovery on — re-deriving on delta bus updates');
       }
     },
 
     stop() {
       clearTimeout(debounce);
-      if (onMetadata) {
-        (app as DiscoveryApp).removeListener('n2kSourceMetadata', onMetadata);
-        onMetadata = undefined;
+      if (onUpdate) {
+        (app as DiscoveryApp).signalk.removeListener('delta', onUpdate);
+        onUpdate = undefined;
       }
       declared = {};
       served = {};
