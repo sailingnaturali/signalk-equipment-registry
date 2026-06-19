@@ -45,14 +45,14 @@ describe.skipIf(!RUN)('consumeDiscovery integration', () => {
       const base = `http://localhost:${port}`;
       let entry: Record<string, unknown> | undefined;
       for (let i = 0; i < 60; i++) {
-        if (proc.exitCode !== null) throw new Error('server exited:\n' + log.join(''));
+        if (proc.exitCode !== null) throw new Error('server exited:\n' + log.slice(-20).join(''));
         try {
           const r = await fetch(`${base}/signalk/v2/api/resources/equipment`);
           if (r.ok) { const reg = await r.json() as Record<string, Record<string, unknown>>; const e = reg['propulsion.port']; if (e && e.serial) { entry = e; break; } }
         } catch { /* not up yet */ }
         await new Promise((res) => setTimeout(res, 1000));
       }
-      expect(entry, 'served registry never gained a discovered serial:\n' + log.join('')).toBeTruthy();
+      expect(entry, 'served registry never gained a discovered serial:\n' + log.slice(-20).join('')).toBeTruthy();
       expect(entry!.equipment_id).toBe('oceanvolt-hpsp25');
       expect(entry!.serial).toBeTruthy();
     } finally {

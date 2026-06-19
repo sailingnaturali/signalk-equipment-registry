@@ -128,6 +128,7 @@ export = function (app: ServerAPI): Plugin {
 
     stop() {
       clearTimeout(debounce);
+      debounce = undefined;
       if (onUpdate) {
         (app as DiscoveryApp).signalk.removeListener('delta', onUpdate);
         onUpdate = undefined;
