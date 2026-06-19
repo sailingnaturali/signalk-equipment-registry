@@ -1,6 +1,6 @@
 {
   "name": "@sailingnaturali/signalk-equipment-registry",
-  "version": "0.2.1",
+  "version": "0.3.0-beta.1",
   "description": "Serve a vessel equipment registry (manufacturer/model/serial per installed instance) as a SignalK resources/equipment resource.",
   "main": "dist/index.js",
   "scripts": {

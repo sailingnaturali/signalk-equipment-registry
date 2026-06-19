@@ -27,11 +27,17 @@ registry collection.
 |---|---|---|
 | `registryPath` | `<dataDir>/equipment-registry.json` | Absolute path, or relative to the SignalK data directory, of the registry JSON file |
 | `publishToDataModel` | `true` | Also emit each instance's manufacturer/model/serial as SignalK data (visible in the admin **Data Browser**, sourced to this plugin), in addition to the `resources/equipment` resource |
+| `consumeDiscovery` | `true` (beta) | Overlay equipment identity that the SignalK server discovers over N2K onto the declared registry — discovered fills gaps, declared wins. No-op without N2K devices on the bus |
 
 With `publishToDataModel` on (the default), the plugin surfaces equipment identity on the data
 model — so standard SignalK tools (e.g. the admin Data Browser) show each instance's
 make/model/serial as rows under its path (`propulsion.port.model`, …). Turn it off to run as a
 pure resource-provider.
+
+With `consumeDiscovery` on (the default, **beta**), the plugin listens for the server's
+`n2kSourceMetadata` and overlays core-discovered make/model/serial onto the declared registry, so
+discovered gear shows up automatically; declared entries always win identity. It's a no-op on a
+vessel with no N2K devices.
 
 ## Registry file format
 
