@@ -26,6 +26,12 @@ registry collection.
 | Option | Default | Purpose |
 |---|---|---|
 | `registryPath` | `<dataDir>/equipment-registry.json` | Absolute path, or relative to the SignalK data directory, of the registry JSON file |
+| `publishToDataModel` | `true` | Also emit each instance's manufacturer/model/serial as SignalK data (visible in the admin **Data Browser**, sourced to this plugin), in addition to the `resources/equipment` resource |
+
+With `publishToDataModel` on (the default), the plugin surfaces equipment identity on the data
+model — so standard SignalK tools (e.g. the admin Data Browser) show each instance's
+make/model/serial as rows under its path (`propulsion.port.model`, …). Turn it off to run as a
+pure resource-provider.
 
 ## Registry file format
 
