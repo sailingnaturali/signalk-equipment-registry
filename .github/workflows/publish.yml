@@ -15,4 +15,12 @@ jobs:
           node-version: 24
       - run: npm ci
       - run: npm test
-      - run: npm publish
+      - name: Publish (prerelease -> beta tag)
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease $VERSION -> dist-tag beta"
+            npm publish --tag beta
+          else
+            npm publish
+          fi
