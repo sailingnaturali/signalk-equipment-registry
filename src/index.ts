@@ -14,12 +14,14 @@ interface Options {
 // ServerAPI's types omit the event-bus methods; declare the bits we use.
 interface DiscoveryApp extends ServerAPI {
   on(event: string, listener: (...args: unknown[]) => void): void;
+  removeListener(event: string, listener: (...args: unknown[]) => void): void;
 }
 
 export = function (app: ServerAPI): Plugin {
   let declared: Registry = {};
   let served: Registry = {};
   let debounce: ReturnType<typeof setTimeout> | undefined;
+  let onMetadata: (() => void) | undefined;
 
   const plugin: Plugin = {
     id: 'signalk-equipment-registry',
@@ -93,16 +95,21 @@ export = function (app: ServerAPI): Plugin {
         // n2kSourceMetadata fires per identity PGN as core discovers devices; use
         // it as a trigger and re-read the server-assembled sources tree. Debounced
         // so a burst of address-claim/product-info PGNs coalesces into one refresh.
-        (app as DiscoveryApp).on('n2kSourceMetadata', () => {
+        onMetadata = () => {
           clearTimeout(debounce);
           debounce = setTimeout(recompute, 1000);
-        });
+        };
+        (app as DiscoveryApp).on('n2kSourceMetadata', onMetadata);
         app.debug('consumeDiscovery on — listening for n2kSourceMetadata');
       }
     },
 
     stop() {
       clearTimeout(debounce);
+      if (onMetadata) {
+        (app as DiscoveryApp).removeListener('n2kSourceMetadata', onMetadata);
+        onMetadata = undefined;
+      }
       declared = {};
       served = {};
     },
