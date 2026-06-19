@@ -2,14 +2,24 @@ import { Plugin, ServerAPI, Path } from '@signalk/server-api';
 import { join } from 'node:path';
 import { readRegistryFile, Registry } from './registry';
 import { identityDeltas } from './identity';
+import { discoveredFromSources, Identity } from './discovery';
+import { overlay } from './overlay';
 
 interface Options {
   registryPath?: string;
   publishToDataModel?: boolean;
+  consumeDiscovery?: boolean;
+}
+
+// ServerAPI's types omit the event-bus methods; declare the bits we use.
+interface DiscoveryApp extends ServerAPI {
+  on(event: string, listener: (...args: unknown[]) => void): void;
 }
 
 export = function (app: ServerAPI): Plugin {
-  let registry: Registry = {};
+  let declared: Registry = {};
+  let served: Registry = {};
+  let debounce: ReturnType<typeof setTimeout> | undefined;
 
   const plugin: Plugin = {
     id: 'signalk-equipment-registry',
@@ -32,46 +42,69 @@ export = function (app: ServerAPI): Plugin {
             'Also emit each instance\'s manufacturer/model/serial as SignalK data so it appears in the Data Browser (sourced to this plugin). Default on.',
           default: true,
         },
+        consumeDiscovery: {
+          type: 'boolean',
+          title: 'Overlay core N2K discovery (beta)',
+          description:
+            'Overlay equipment identity discovered by the SignalK server (N2K) onto the declared registry — discovered fills gaps, declared wins. No-op without N2K devices. Default on (beta).',
+          default: true,
+        },
       },
     },
 
     start(options: Options) {
       const filePath = options.registryPath ??
         join(app.getDataDirPath(), 'equipment-registry.json');
-      registry = readRegistryFile(filePath);
-      app.debug('equipment registry loaded: %d instances from %s',
-        Object.keys(registry).length, filePath);
+      declared = readRegistryFile(filePath);
+      app.debug('equipment registry loaded: %d declared instances from %s',
+        Object.keys(declared).length, filePath);
 
-      // Served at /signalk/v2/api/resources/equipment, anonymously readable
-      // under allow_readonly (the data API), like signalk-currents. A
-      // registerWithRouter /plugins/<id> route would be admin-gated — wrong
-      // mechanism here.
+      const publish = options.publishToDataModel !== false;
+
+      const recompute = (): void => {
+        const discovered: Record<string, Identity> = options.consumeDiscovery !== false
+          ? discoveredFromSources(
+              (app.getPath('sources') as Record<string, unknown>) ?? {},
+              (app.getSelfPath('') as Record<string, unknown>) ?? {},
+            )
+          : {};
+        served = overlay(declared, discovered);
+        if (publish) {
+          const values = identityDeltas(served).map((d) => ({ path: d.path as Path, value: d.value }));
+          if (values.length > 0) app.handleMessage(plugin.id, { updates: [{ values }] });
+        }
+        app.debug('served %d instances (%d declared)',
+          Object.keys(served).length, Object.keys(declared).length);
+      };
+
+      recompute();
+
       app.registerResourceProvider({
         type: 'equipment',
         methods: {
-          async listResources() {
-            return registry as unknown as Record<string, unknown>;
-          },
+          async listResources() { return served as unknown as Record<string, unknown>; },
           getResource(): never { throw new Error('Not implemented'); },
           setResource(): never { throw new Error('Not implemented'); },
           deleteResource(): never { throw new Error('Not implemented'); },
         },
       });
 
-      if (options.publishToDataModel !== false) {
-        const values = identityDeltas(registry).map((d) => ({
-          path: d.path as Path,
-          value: d.value,
-        }));
-        if (values.length > 0) {
-          app.handleMessage(plugin.id, { updates: [{ values }] });
-          app.debug('published %d equipment-identity values to the data model', values.length);
-        }
+      if (options.consumeDiscovery !== false) {
+        // n2kSourceMetadata fires per identity PGN as core discovers devices; use
+        // it as a trigger and re-read the server-assembled sources tree. Debounced
+        // so a burst of address-claim/product-info PGNs coalesces into one refresh.
+        (app as DiscoveryApp).on('n2kSourceMetadata', () => {
+          clearTimeout(debounce);
+          debounce = setTimeout(recompute, 1000);
+        });
+        app.debug('consumeDiscovery on — listening for n2kSourceMetadata');
       }
     },
 
     stop() {
-      registry = {};
+      clearTimeout(debounce);
+      declared = {};
+      served = {};
     },
   };
 
